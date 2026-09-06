@@ -8179,6 +8179,7 @@ public import Mathlib.Topology.Order.LowerUpperTopology
 public import Mathlib.Topology.Order.Monotone
 public import Mathlib.Topology.Order.MonotoneContinuity
 public import Mathlib.Topology.Order.MonotoneConvergence
+public import Mathlib.Topology.Order.MonotoneConvergence.Metric
 public import Mathlib.Topology.Order.NhdsSet
 public import Mathlib.Topology.Order.OrderClosed
 public import Mathlib.Topology.Order.OrderClosedExtr

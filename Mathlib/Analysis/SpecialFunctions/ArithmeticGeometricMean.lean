@@ -7,6 +7,7 @@ module
 
 public import Mathlib.Analysis.SpecificLimits.Basic
 public import Mathlib.Analysis.Real.Sqrt
+import Mathlib.Topology.Order.MonotoneConvergence.Metric
 
 /-!
 # The arithmetic-geometric mean
@@ -112,10 +113,7 @@ lemma agmSequences_snd_antitone : Antitone fun n ↦ (agmSequences x y n).2 :=
   agmSequences_monotone_and_antitone.2
 
 lemma agmSequences_fst_le_snd (n m : ℕ) : (agmSequences x y n).1 ≤ (agmSequences x y m).2 := by
-  suffices ∀ {k}, (agmSequences x y k).1 ≤ (agmSequences x y k).2 by
-    obtain h | h := le_total n m
-    · exact (agmSequences_fst_monotone h).trans this
-    · exact this.trans (agmSequences_snd_antitone h)
+  apply agmSequences_fst_monotone.forall_le_of_antitone agmSequences_snd_antitone ?_ n m
   intro k
   induction k generalizing x y with
   | zero => exact sqrt_mul_le_half_add ..
@@ -171,7 +169,8 @@ lemma agm_comm : agm x y = agm y x := by
 lemma agm_eq_ciInf : agm x y = ⨅ n, (agmSequences x y n).2 := rfl
 
 lemma tendsto_agmSequences_snd_agm : Tendsto (fun n ↦ (agmSequences x y n).2) atTop (𝓝 (agm x y)) :=
-  tendsto_atTop_ciInf agmSequences_snd_antitone (OrderBot.bddBelow _)
+  agmSequences_snd_antitone.tendsto_atTop_ciInf_of_monotone agmSequences_fst_monotone
+    (fun n ↦ agmSequences_fst_le_snd n n)
 
 lemma agm_le_agmSequences_snd (n : ℕ) : agm x y ≤ (agmSequences x y n).2 := ciInf_le' _ n
 
@@ -183,29 +182,22 @@ lemma agm_le_max : agm x y ≤ max x y := by
   rw [agmSequences_zero]
   exact (le_gm_and_am_le h).2
 
-lemma bddAbove_range_agmSequences_fst : BddAbove (Set.range fun n ↦ (agmSequences x y n).1) := by
-  rw [bddAbove_def]
-  use (agmSequences x y 0).2
-  simp_rw [Set.mem_range, forall_exists_index, forall_apply_eq_imp_iff]
-  exact fun _ ↦ agmSequences_fst_le_snd ..
+lemma bddAbove_range_agmSequences_fst : BddAbove (Set.range fun n ↦ (agmSequences x y n).1) :=
+  agmSequences_fst_monotone.bddAbove_range_of_antitone agmSequences_snd_antitone
+    (fun n ↦ agmSequences_fst_le_snd n n)
 
 /-- The AGM is also the supremum of the geometric means. -/
-lemma agm_eq_ciSup : agm x y = ⨆ n, (agmSequences x y n).1 := by
-  refine tendsto_nhds_unique (tendsto_agmSequences_snd_agm.congr_dist ?_)
-    (tendsto_atTop_ciSup agmSequences_fst_monotone bddAbove_range_agmSequences_fst)
-  conv =>
-    enter [1, n]
-    rw [dist_comm]
-  exact tendsto_dist_agmSequences_atTop_zero
+lemma agm_eq_ciSup : agm x y = ⨆ n, (agmSequences x y n).1 :=
+  (agmSequences_fst_monotone.ciSup_eq_ciInf_of_tendsto_dist agmSequences_snd_antitone
+    (fun n ↦ agmSequences_fst_le_snd n n) tendsto_dist_agmSequences_atTop_zero).symm
 
 lemma tendsto_agmSequences_fst_agm :
-    Tendsto (fun n ↦ (agmSequences x y n).1) atTop (𝓝 (agm x y)) := by
-  rw [agm_eq_ciSup]
-  exact tendsto_atTop_ciSup agmSequences_fst_monotone bddAbove_range_agmSequences_fst
+    Tendsto (fun n ↦ (agmSequences x y n).1) atTop (𝓝 (agm x y)) :=
+  agmSequences_fst_monotone.tendsto_atTop_ciInf_of_tendsto_dist agmSequences_snd_antitone
+    (fun n ↦ agmSequences_fst_le_snd n n) tendsto_dist_agmSequences_atTop_zero
 
-lemma agmSequences_fst_le_agm (n : ℕ) : (agmSequences x y n).1 ≤ agm x y := by
-  rw [agm_eq_ciSup]
-  exact le_ciSup bddAbove_range_agmSequences_fst _
+lemma agmSequences_fst_le_agm (n : ℕ) : (agmSequences x y n).1 ≤ agm x y :=
+  le_ciInf (agmSequences_fst_le_snd n)
 
 lemma min_le_agm : min x y ≤ agm x y := by
   wlog h : x ≤ y generalizing x y

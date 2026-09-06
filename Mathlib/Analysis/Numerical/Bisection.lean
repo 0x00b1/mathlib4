@@ -7,6 +7,8 @@ module
 
 public import Mathlib.Analysis.SpecificLimits.Basic
 
+import Mathlib.Topology.Order.MonotoneConvergence.Metric
+
 /-!
 # Bisection method
 
@@ -23,6 +25,9 @@ the supremum of the left endpoints. The midpoint `Bisection.approximation f a b 
 If `f` is continuous on `[a, b]` and `f a * f b ≤ 0`, the limit is a root of `f`.
 The main result is `Bisection.exists_root_tendsto_approximation`.
 The iteration uses exact, noncomputable real arithmetic and permits `a = b`.
+
+Convergence follows from the general theory of nested endpoints in
+`Mathlib.Topology.Order.MonotoneConvergence.Metric`.
 -/
 
 @[expose] public section
@@ -113,11 +118,14 @@ def approximation (f : ℝ → ℝ) (a b : ℝ) (n : ℕ) : ℝ :=
 @[simp]
 theorem approximation_zero : approximation f a b 0 = (a + b) / 2 := rfl
 
-theorem approximation_mem_Icc (hab : a ≤ b) (n : ℕ) :
-    approximation f a b n ∈ Icc a b := by
-  apply Icc_iterate_subset (f := f) hab n
+theorem approximation_mem_Icc_iterate (hab : a ≤ b) (n : ℕ) :
+    approximation f a b n ∈ Icc (iterate f a b n).1 (iterate f a b n).2 := by
   have h := iterate_fst_le_snd (f := f) hab n
   constructor <;> dsimp [approximation] <;> linarith
+
+theorem approximation_mem_Icc (hab : a ≤ b) (n : ℕ) :
+    approximation f a b n ∈ Icc a b :=
+  Icc_iterate_subset hab n (approximation_mem_Icc_iterate hab n)
 
 @[simp]
 theorem approximation_self (f : ℝ → ℝ) (a : ℝ) (n : ℕ) : approximation f a a n = a := by
@@ -128,7 +136,7 @@ def limit (f : ℝ → ℝ) (a b : ℝ) : ℝ :=
   ⨆ n, (iterate f a b n).1
 
 theorem bddAbove_range_fst (hab : a ≤ b) : BddAbove (range fun n ↦ (iterate f a b n).1) :=
-  ⟨(iterate f a b 0).2, forall_mem_range.mpr fun n ↦ fst_le_snd hab n 0⟩
+  (monotone_fst hab).bddAbove_range_of_antitone (antitone_snd hab) (iterate_fst_le_snd hab)
 
 theorem limit_mem_Icc_iterate (hab : a ≤ b) (n : ℕ) :
     limit f a b ∈ Icc (iterate f a b n).1 (iterate f a b n).2 :=
@@ -144,23 +152,26 @@ theorem limit_self (f : ℝ → ℝ) (a : ℝ) : limit f a a = a := by
 
 theorem tendsto_fst_limit (hab : a ≤ b) :
     Tendsto (fun n ↦ (iterate f a b n).1) atTop (𝓝 (limit f a b)) :=
-  tendsto_atTop_ciSup (monotone_fst hab) (bddAbove_range_fst hab)
+  (monotone_fst hab).tendsto_atTop_ciSup_of_antitone (antitone_snd hab) (iterate_fst_le_snd hab)
 
 theorem tendsto_sub_iterate_zero (f : ℝ → ℝ) (a b : ℝ) :
     Tendsto (fun n ↦ (iterate f a b n).2 - (iterate f a b n).1) atTop (𝓝 0) := by
   simpa only [sub_iterate] using tendsto_const_nhds.div_atTop
     (tendsto_pow_atTop_atTop_of_one_lt (by norm_num : (1 : ℝ) < 2))
 
+theorem tendsto_dist_iterate_zero (f : ℝ → ℝ) (a b : ℝ) :
+    Tendsto (fun n ↦ dist (iterate f a b n).1 (iterate f a b n).2) atTop (𝓝 0) := by
+  simpa only [Real.dist_eq, abs_sub_comm, abs_zero] using (tendsto_sub_iterate_zero f a b).abs
+
 theorem tendsto_snd_limit (hab : a ≤ b) :
-    Tendsto (fun n ↦ (iterate f a b n).2) atTop (𝓝 (limit f a b)) := by
-  simpa only [sub_add_cancel, zero_add] using
-    (tendsto_sub_iterate_zero f a b).add (tendsto_fst_limit (f := f) hab)
+    Tendsto (fun n ↦ (iterate f a b n).2) atTop (𝓝 (limit f a b)) :=
+  (antitone_snd hab).tendsto_atTop_ciSup_of_tendsto_dist (monotone_fst hab)
+    (iterate_fst_le_snd hab) (tendsto_dist_iterate_zero f a b)
 
 theorem tendsto_approximation_limit (hab : a ≤ b) :
-    Tendsto (approximation f a b) atTop (𝓝 (limit f a b)) := by
-  unfold approximation
-  simpa only [add_self_div_two] using
-    ((tendsto_fst_limit (f := f) hab).add (tendsto_snd_limit (f := f) hab)).div_const 2
+    Tendsto (approximation f a b) atTop (𝓝 (limit f a b)) :=
+  (monotone_fst hab).tendsto_of_mem_Icc_of_tendsto_dist (antitone_snd hab)
+    (iterate_fst_le_snd hab) (tendsto_dist_iterate_zero f a b) (approximation_mem_Icc_iterate hab)
 
 /-- The midpoint error is at most half the width of the current interval. -/
 theorem dist_approximation_limit_le (hab : a ≤ b) (n : ℕ) :
